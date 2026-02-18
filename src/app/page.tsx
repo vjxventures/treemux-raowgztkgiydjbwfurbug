@@ -1,63 +1,88 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { Sidebar } from "@/components/sidebar";
+import { DashboardView } from "@/components/dashboard-view";
+import { TracesView } from "@/components/traces-view";
+import { AgentsView } from "@/components/agents-view";
+import { EvalsView } from "@/components/evals-view";
+import { SandboxView } from "@/components/sandbox-view";
+import { AlertsView } from "@/components/alerts-view";
+import {
+  Activity,
+  Clock,
+} from "lucide-react";
+
+const tabTitles: Record<string, string> = {
+  dashboard: "Dashboard",
+  traces: "Traces",
+  agents: "Agents",
+  evals: "Evaluations",
+  sandbox: "Sandbox Simulation",
+  alerts: "Alerts",
+  analytics: "Analytics",
+  settings: "Settings",
+};
+
+const tabDescriptions: Record<string, string> = {
+  dashboard: "Real-time overview of agent performance and reliability metrics",
+  traces: "Inspect individual agent execution traces with step-by-step waterfall visualization",
+  agents: "Manage agent versions, configurations, and performance baselines",
+  evals: "Run evaluation suites, review results, and track regression across agent versions",
+  sandbox: "Simulate agent behavior in isolated environments with adversarial and load testing",
+  alerts: "Monitor and respond to reliability incidents and threshold violations",
+  analytics: "Deep analysis of agent performance trends and cost optimization",
+  settings: "Configure integrations, thresholds, and team access controls",
+};
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    <div className="flex min-h-screen bg-probe-surface">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <main className="ml-56 flex-1">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-probe-border bg-probe-surface/80 backdrop-blur-md px-6">
+          <div>
+            <h1 className="text-[15px] font-semibold text-probe-text">
+              {tabTitles[activeTab]}
+            </h1>
+            <p className="text-[11px] text-probe-text-dim">
+              {tabDescriptions[activeTab]}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 rounded-md border border-probe-border bg-probe-surface-1 px-2.5 py-1.5">
+              <Activity size={12} className="text-probe-green animate-pulse-dot" />
+              <span className="text-[11px] font-mono text-probe-text-dim">Live</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md border border-probe-border bg-probe-surface-1 px-2.5 py-1.5">
+              <Clock size={12} className="text-probe-text-dim" />
+              <span className="text-[11px] font-mono text-probe-text-dim">Last 24h</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="p-6">
+          {activeTab === "dashboard" && <DashboardView />}
+          {activeTab === "traces" && <TracesView />}
+          {activeTab === "agents" && <AgentsView />}
+          {activeTab === "evals" && <EvalsView />}
+          {activeTab === "sandbox" && <SandboxView />}
+          {activeTab === "alerts" && <AlertsView />}
+          {activeTab === "analytics" && (
+            <div className="flex h-64 items-center justify-center rounded-md border border-probe-border bg-probe-surface-1">
+              <p className="text-[13px] text-probe-text-dim">Analytics view coming soon</p>
+            </div>
+          )}
+          {activeTab === "settings" && (
+            <div className="flex h-64 items-center justify-center rounded-md border border-probe-border bg-probe-surface-1">
+              <p className="text-[13px] text-probe-text-dim">Settings view coming soon</p>
+            </div>
+          )}
         </div>
       </main>
     </div>
