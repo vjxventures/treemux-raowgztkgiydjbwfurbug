@@ -61,11 +61,19 @@ export async function POST(req: Request) {
     }
 
     // Check permission scope
-    const actionScope = action.replace(".", ":");
+    // Actions use dot notation (payment.authorize), permissions use colon (payments:authorize)
+    // Match: action "payment.authorize" -> permission domain "payments" (with/without trailing 's')
+    const actionParts = action.split(".");
+    const actionDomain = actionParts[0];
+    const actionRight = actionParts[1] || "*";
     const hasPermission = credential.permissions.some((p) => {
-      const [domain, right] = p.split(":");
-      const [actionDomain] = actionScope.split(":");
-      return domain === actionDomain || p === actionScope;
+      const [permDomain, permRight] = p.split(":");
+      const domainMatch =
+        permDomain === actionDomain ||
+        permDomain === actionDomain + "s" ||
+        permDomain + "s" === actionDomain;
+      const rightMatch = permRight === actionRight || permRight === "*";
+      return domainMatch && rightMatch;
     });
 
     // Evaluate policy constraints

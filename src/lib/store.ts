@@ -1,6 +1,6 @@
 /**
  * ATP In-Memory Store
- * Simulates persistent storage for the demo.
+ * Uses globalThis for state persistence across Next.js module reloads.
  * In production, this would be backed by a database with Merkle tree audit logs.
  */
 import { v4 as uuid } from "uuid";
@@ -21,23 +21,43 @@ import type {
   AnalyticsSummary,
 } from "./types";
 
-// --- In-memory state ---
-let organizations: Organization[] = [];
-let principals: Principal[] = [];
-let credentials: AgentCredential[] = [];
-let auditLog: AuditEntry[] = [];
-let transactions: Transaction[] = [];
+// --- In-memory state using globalThis for Next.js module persistence ---
+interface ATPState {
+  organizations: Organization[];
+  principals: Principal[];
+  credentials: AgentCredential[];
+  auditLog: AuditEntry[];
+  transactions: Transaction[];
+  seeded: boolean;
+}
 
-// --- Seed data on first import ---
-let seeded = false;
+const GLOBAL_KEY = Symbol.for("__atp_store__");
+
+function getState(): ATPState {
+  const g = globalThis as unknown as Record<symbol, ATPState>;
+  if (!g[GLOBAL_KEY]) {
+    g[GLOBAL_KEY] = {
+      organizations: [],
+      principals: [],
+      credentials: [],
+      auditLog: [],
+      transactions: [],
+      seeded: false,
+    };
+  }
+  return g[GLOBAL_KEY];
+}
 
 export function ensureSeeded() {
-  if (seeded) return;
-  seeded = true;
+  const state = getState();
+  if (state.seeded) return;
+  state.seeded = true;
   seedDemoData();
 }
 
 function seedDemoData() {
+  const state = getState();
+
   // Create demo org
   const orgKp = generateKeyPair();
   const org: Organization = {
@@ -47,7 +67,7 @@ function seedDemoData() {
     publicKey: orgKp.publicKey,
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
   };
-  organizations.push(org);
+  state.organizations.push(org);
 
   // Create demo principals
   const adminKp = generateKeyPair();
@@ -73,7 +93,7 @@ function seedDemoData() {
     publicKey: devKp.publicKey,
     createdAt: new Date(Date.now() - 25 * 86400000).toISOString(),
   };
-  principals.push(admin, dev);
+  state.principals.push(admin, dev);
 
   // Create demo agent credentials
   const agents = [
@@ -87,6 +107,7 @@ function seedDemoData() {
       ],
       status: "active" as const,
       issuer: admin,
+      issuerKp: adminKp,
     },
     {
       name: "Contract Negotiation Agent",
@@ -97,6 +118,7 @@ function seedDemoData() {
       ],
       status: "active" as const,
       issuer: admin,
+      issuerKp: adminKp,
     },
     {
       name: "Data Analytics Agent",
@@ -108,6 +130,7 @@ function seedDemoData() {
       ],
       status: "active" as const,
       issuer: dev,
+      issuerKp: devKp,
     },
     {
       name: "Vendor Onboarding Agent",
@@ -118,6 +141,7 @@ function seedDemoData() {
       ],
       status: "suspended" as const,
       issuer: admin,
+      issuerKp: adminKp,
     },
   ];
 
@@ -143,7 +167,7 @@ function seedDemoData() {
         delegatedPermissions: agentDef.permissions,
         signature: sign(
           JSON.stringify({ from: agentDef.issuer.did, to: agentDid, perms: agentDef.permissions }),
-          agentDef.issuer === admin ? adminKp.privateKey : devKp.privateKey
+          agentDef.issuerKp.privateKey
         ),
         timestamp: new Date(Date.now() - 20 * 86400000).toISOString(),
       },
@@ -168,10 +192,10 @@ function seedDemoData() {
       constraints: agentDef.constraints as PolicyConstraint[],
       issuedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
       expiresAt: new Date(Date.now() + 345 * 86400000).toISOString(),
-      issuerSignature: sign(credPayload, agentDef.issuer === admin ? adminKp.privateKey : devKp.privateKey),
+      issuerSignature: sign(credPayload, agentDef.issuerKp.privateKey),
       authorityChain,
     };
-    credentials.push(cred);
+    state.credentials.push(cred);
   }
 
   // Generate audit log entries
@@ -195,8 +219,8 @@ function seedDemoData() {
 
   let prevHash = hashData("genesis");
   for (let i = 0; i < actions.length; i++) {
-    const credIdx = i % credentials.length;
-    const cred = credentials[credIdx];
+    const credIdx = i % state.credentials.length;
+    const cred = state.credentials[credIdx];
     const entry: AuditEntry = {
       id: uuid(),
       credentialId: cred.id,
@@ -216,16 +240,16 @@ function seedDemoData() {
     };
     entry.entryHash = hashData(JSON.stringify({ ...entry, entryHash: "" }));
     prevHash = entry.entryHash;
-    auditLog.push(entry);
+    state.auditLog.push(entry);
   }
 
   // Generate transactions
   const txnTypes: Array<"payment" | "api_call" | "contract" | "data_access"> = ["payment", "api_call", "contract", "data_access"];
   for (let i = 0; i < 25; i++) {
-    const credIdx = i % credentials.length;
-    const cred = credentials[credIdx];
+    const credIdx = i % state.credentials.length;
+    const cred = state.credentials[credIdx];
     const txnType = txnTypes[i % txnTypes.length];
-    transactions.push({
+    state.transactions.push({
       id: uuid(),
       agentDID: cred.agentDID,
       credentialId: cred.id,
@@ -243,56 +267,60 @@ function seedDemoData() {
 
 export function getOrganizations(): Organization[] {
   ensureSeeded();
-  return [...organizations];
+  return [...getState().organizations];
 }
 
 export function getOrganization(id: string): Organization | undefined {
   ensureSeeded();
-  return organizations.find((o) => o.id === id);
+  return getState().organizations.find((o) => o.id === id);
 }
 
 export function getPrincipals(orgId?: string): Principal[] {
   ensureSeeded();
+  const { principals } = getState();
   if (orgId) return principals.filter((p) => p.orgId === orgId);
   return [...principals];
 }
 
 export function getCredentials(orgId?: string): AgentCredential[] {
   ensureSeeded();
+  const { credentials } = getState();
   if (orgId) return credentials.filter((c) => c.orgId === orgId);
   return [...credentials];
 }
 
 export function getCredential(id: string): AgentCredential | undefined {
   ensureSeeded();
-  return credentials.find((c) => c.id === id);
+  return getState().credentials.find((c) => c.id === id);
 }
 
 export function getCredentialByDID(did: string): AgentCredential | undefined {
   ensureSeeded();
-  return credentials.find((c) => c.agentDID === did);
+  return getState().credentials.find((c) => c.agentDID === did);
 }
 
 export function getAuditLog(credentialId?: string): AuditEntry[] {
   ensureSeeded();
+  const { auditLog } = getState();
   if (credentialId) return auditLog.filter((e) => e.credentialId === credentialId);
   return [...auditLog];
 }
 
 export function getTransactions(agentDID?: string): Transaction[] {
   ensureSeeded();
+  const { transactions } = getState();
   if (agentDID) return transactions.filter((t) => t.agentDID === agentDID);
   return [...transactions];
 }
 
 export function addCredential(cred: AgentCredential): void {
   ensureSeeded();
-  credentials.push(cred);
+  getState().credentials.push(cred);
 }
 
 export function updateCredentialStatus(id: string, status: AgentCredential["status"]): boolean {
   ensureSeeded();
-  const cred = credentials.find((c) => c.id === id);
+  const cred = getState().credentials.find((c) => c.id === id);
   if (!cred) return false;
   cred.status = status;
   return true;
@@ -300,16 +328,17 @@ export function updateCredentialStatus(id: string, status: AgentCredential["stat
 
 export function addAuditEntry(entry: AuditEntry): void {
   ensureSeeded();
-  auditLog.push(entry);
+  getState().auditLog.push(entry);
 }
 
 export function addTransaction(txn: Transaction): void {
   ensureSeeded();
-  transactions.push(txn);
+  getState().transactions.push(txn);
 }
 
 export function getAnalytics(): AnalyticsSummary {
   ensureSeeded();
+  const { credentials, transactions, auditLog } = getState();
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
