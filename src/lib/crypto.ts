@@ -3,12 +3,11 @@
  * Ed25519 key generation, signing, and verification for agent identity
  */
 import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2";
-import { sha256 } from "@noble/hashes/sha256";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { sha512, sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 
-// Ed25519 requires sha512 sync
-ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+// Ed25519 v3 requires sha512 to be set on hashes
+ed.hashes.sha512 = (msg: Uint8Array) => sha512(msg);
 
 export interface KeyPair {
   publicKey: string; // hex
@@ -16,7 +15,7 @@ export interface KeyPair {
 }
 
 export function generateKeyPair(): KeyPair {
-  const privateKey = ed.utils.randomPrivateKey();
+  const privateKey = ed.utils.randomSecretKey();
   const publicKey = ed.getPublicKey(privateKey);
   return {
     publicKey: bytesToHex(publicKey),
